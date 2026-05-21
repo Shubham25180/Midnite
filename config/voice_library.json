@@ -1,0 +1,11 @@
+{
+  "voices": [
+    {
+      "name": "elevenlabs_2026-05-19t20_24_37_kirsty_-_",
+      "file": "config/voices/elevenlabs_2026-05-19t20_24_37_kirsty_-_.wav",
+      "ref_text": "Okay, so, I've been thinking about something. This thing that's been sitting in the back of my head all day and I can't quite shake it. Anyway.",
+      "duration": 12.0,
+      "created_at": "2026-05-20T01:56:02"
+    }
+  ]
+}

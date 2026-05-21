@@ -1,0 +1,52 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Local runtime data — never commit personal memory or session logs
+logs/
+data/
+ruvector.db
+*.db
+*.jsonl
+
+# Claude Code session state
+.claude/
+.swarm/
+.agents/
+.claude-flow/
+.codex/
+
+# Audio / media files
+*.mp3
+*.wav
+*.ogg
+*.flac
+
+# Secrets and credentials
+secrets.json
+.env
+*.key
+*.pem
+
+# Test / scratch artifacts
+hello_world.txt
+trace_out3.txt
+_WINDOW
+threshold
+read
+test_output.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

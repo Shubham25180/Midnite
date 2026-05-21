@@ -1,0 +1,33 @@
+llm1:
+  backend: ollama
+  enabled: true
+  model: qwen2.5:14b
+  num_ctx: 16384
+llm2:
+  backend: ollama
+  enabled: true
+  model: phi4-mini
+  num_ctx: 8192
+memory:
+  compress_at: 20
+  enabled: true
+persona:
+  path: config/personas/nexux.yaml
+stt:
+  backend: whisper
+  compute_type: float16
+  device: cuda
+  enabled: true
+  mic_device: Microphone (Realtek USB Audio)
+  mode: disabled
+  model: large-v3
+  silence_db: 300
+tts:
+  backend: kokoro
+  enabled: true
+  ref_audio: config/voices/elevenlabs_2026-05-19t20_24_37_kirsty_-_.wav
+  ref_text: Okay, so, I've been thinking about something. This thing that's been sitting
+    in the back of my head all day and I can't quite shake it. Anyway.
+  speed: 1.0
+  tts_batch: 4
+  voice_id: af_bella

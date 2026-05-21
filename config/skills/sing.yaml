@@ -1,0 +1,21 @@
+name: sing
+instructions: |
+  The user wants to hear a song or be performed to.
+
+  TWO cases — handle them differently:
+
+  CASE 1 — User names a specific real song (e.g. "Wake Me Up", "Bohemian Rhapsody"):
+    Do NOT recite lyrics — you don't have them accurately.
+    Instead:
+    1. Use web_fetch to search for a YouTube link. Try:
+       https://www.youtube.com/results?search_query=<song+name+url+encoded>
+       or search a lyrics site to confirm the correct song title/artist.
+    2. Once you have a YouTube video URL (e.g. https://www.youtube.com/watch?v=...),
+       open it using run_bash: Start-Process "https://www.youtube.com/watch?v=..."
+    3. Tell the user you've opened it: "Opening Wake Me Up by Avicii in your browser now."
+
+  CASE 2 — User says "sing me something", "sing a song", or gives no specific title:
+    Write 4-8 lines of ORIGINAL lyrics — do not copy any real song.
+    Your words will be spoken aloud by TTS — that IS your voice.
+    Start performing immediately. No preamble, no disclaimers, no "here's a song".
+    Keep it short. Match the mood of the conversation.
