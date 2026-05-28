@@ -71,6 +71,58 @@ def execute(name: str, arguments: dict) -> str:
                 return _search_memory(arguments.get("query", ""))
             case "load_skill":
                 return _load_skill(arguments.get("name", ""))
+            case "take_screenshot":
+                from Skynet.tools.vision_tools import take_screenshot
+                return take_screenshot(arguments.get("prompt", "Describe everything you see on screen in detail."))
+            case "web_browse":
+                from Skynet.tools.browser_tools import web_browse
+                return web_browse(
+                    arguments.get("url", ""),
+                    arguments.get("selector", ""),
+                    arguments.get("wait_for", ""),
+                )
+            case "read_pdf":
+                from Skynet.tools.file_readers import read_pdf
+                return read_pdf(
+                    arguments.get("path", ""),
+                    arguments.get("pages", "all"),
+                    int(arguments.get("dpi", 200)),
+                )
+            case "read_spreadsheet":
+                from Skynet.tools.file_readers import read_spreadsheet
+                return read_spreadsheet(
+                    arguments.get("path", ""),
+                    arguments.get("sheet"),
+                    int(arguments.get("max_rows", 100)),
+                )
+            case "read_word":
+                from Skynet.tools.file_readers import read_word
+                return read_word(arguments.get("path", ""))
+            case "write_spreadsheet":
+                from Skynet.tools.file_writers import write_spreadsheet
+                return write_spreadsheet(
+                    arguments.get("path", ""),
+                    arguments.get("rows", []),
+                    arguments.get("sheet", "Sheet1"),
+                )
+            case "write_word":
+                from Skynet.tools.file_writers import write_word
+                return write_word(
+                    arguments.get("path", ""),
+                    arguments.get("content", ""),
+                )
+            case "browser_action":
+                from Skynet.tools.browser_tools import browser_action
+                return browser_action(
+                    action=arguments.get("action", ""),
+                    url=arguments.get("url", ""),
+                    selector=arguments.get("selector", ""),
+                    text=arguments.get("text", ""),
+                    role=arguments.get("role", ""),
+                    value=arguments.get("value", ""),
+                    wait_for=arguments.get("wait_for", ""),
+                    timeout_ms=int(arguments.get("timeout_ms", 15_000)),
+                )
             case _:
                 return f"Unknown tool: {name}"
     except Exception as exc:

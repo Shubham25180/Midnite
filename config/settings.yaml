@@ -19,7 +19,7 @@ stt:
   device: cuda
   enabled: true
   mic_device: Microphone (Realtek USB Audio)
-  mode: disabled
+  mode: push_to_talk
   model: large-v3
   silence_db: 300
 tts:
@@ -31,3 +31,7 @@ tts:
   speed: 1.0
   tts_batch: 4
   voice_id: af_bella
+vision:
+  backend: ollama
+  enabled: true
+  model: qwen2.5vl:7b

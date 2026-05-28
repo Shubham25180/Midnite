@@ -309,6 +309,11 @@ class Orchestrator(Component):
                 list(self._history), provider, turn_count=len(self._history)
             )
             logger.info("Memory: session-end compression triggered (%d turns)", len(self._history))
+        try:
+            from Skynet.tools.browser_tools import shutdown_browser
+            shutdown_browser()
+        except Exception:
+            pass
         self._health = ComponentState.OFFLINE
 
     def health(self) -> ComponentState:
@@ -751,6 +756,16 @@ class Orchestrator(Component):
 
         # Runtime awareness goes FIRST so factual capabilities override personality hedging
         system_prompt = self._build_system_awareness() + "\n\n" + persona_prompt
+
+        # Layer 1 — Pinned Identity: loaded from data/identity.json, prepended above everything.
+        # No Qdrant search needed — JSON file is instant. Never compressed away.
+        identity_facts = vector_store.load_identity()
+        if identity_facts:
+            identity_block = (
+                "PINNED IDENTITY (permanent — never compressed, always authoritative):\n"
+                + "\n".join(f"  - {f}" for f in identity_facts)
+            )
+            system_prompt = identity_block + "\n\n" + system_prompt
 
         # Non-recall turns: inject lightweight recent-session context only
         recent_ctx = session_store.build_memory_context(n_sessions=1)

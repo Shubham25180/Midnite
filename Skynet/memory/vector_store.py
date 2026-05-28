@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import json
 import logging
 import threading
 import warnings
@@ -25,6 +26,7 @@ def _atexit_close() -> None:
 atexit.register(_atexit_close)
 
 _DB_PATH = Path("data/qdrant")
+_IDENTITY_PATH = Path("data/identity.json")
 _COLLECTION = "nexux_memory"
 # fastembed internal name for BAAI/bge-small-en-v1.5 (33MB, 384-dim, CPU-fast)
 _EMBED_MODEL = "BAAI/bge-small-en-v1.5"
@@ -35,6 +37,7 @@ _TOP_K = 5
 
 _client: Any = None
 _lock = threading.Lock()
+_identity_lock = threading.Lock()
 
 
 def _get_client() -> Any:
@@ -74,10 +77,46 @@ def _ensure_collection(client: Any) -> None:
         logger.info("Qdrant collection '%s' ready (%d entries)", _COLLECTION, count)
 
 
+def _update_identity_json(text: str) -> None:
+    """Append a core fact to data/identity.json (deduplicated by text)."""
+    with _identity_lock:
+        try:
+            _IDENTITY_PATH.parent.mkdir(parents=True, exist_ok=True)
+            if _IDENTITY_PATH.exists():
+                data = json.loads(_IDENTITY_PATH.read_text(encoding="utf-8"))
+            else:
+                data = {"version": 1, "facts": []}
+            existing = {f["text"].lower().strip() for f in data.get("facts", [])}
+            if text.lower().strip() not in existing:
+                data.setdefault("facts", []).append(
+                    {"text": text.strip(), "ts": datetime.now().isoformat()}
+                )
+                _IDENTITY_PATH.write_text(
+                    json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+                logger.info("Identity JSON updated (%d facts): %s", len(data["facts"]), text[:80])
+        except Exception:
+            logger.exception("Failed to update identity.json")
+
+
+def load_identity() -> list[str]:
+    """Return pinned core facts from data/identity.json — Layer 1 of cognitive state."""
+    try:
+        if not _IDENTITY_PATH.exists():
+            return []
+        data = json.loads(_IDENTITY_PATH.read_text(encoding="utf-8"))
+        return [f["text"] for f in data.get("facts", []) if isinstance(f.get("text"), str)]
+    except Exception:
+        logger.debug("Failed to load identity.json")
+        return []
+
+
 def store(text: str, entry_type: str = "summary", extra: dict | None = None) -> None:
     """Embed and persist one memory entry."""
     if not text.strip():
         return
+    if entry_type == "core":
+        _update_identity_json(text)
     from qdrant_client.models import PointStruct
     import uuid
     now = datetime.now()

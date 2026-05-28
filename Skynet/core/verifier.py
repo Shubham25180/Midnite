@@ -32,6 +32,23 @@ _SAVE_REQUEST = re.compile(
     r"keep (this|that)|note (this|that|down)|don't forget|add .{0,20} to memory)\b",
     re.IGNORECASE,
 )
+# Request is clearly asking the AI to RETRIEVE, not store — used to suppress Rule 2 false positives
+_RECALL_ONLY = re.compile(
+    r"\b(do you remember|what do you (know|remember)|do you have (any )?memory|"
+    r"recall (last|previous|our)|what was (the )?last|what have we|"
+    r"any context (of|from)|last (session|time|conversation))\b",
+    re.IGNORECASE,
+)
+# Patterns for pins that are NOT user identity facts (actions, events, system status)
+_PIN_REJECT = re.compile(
+    r"\b(file (created|written|saved|read|updated|deleted)|"
+    r"system (status|operating|normal|ready)|"
+    r"task (done|complete|finished|completed)|"
+    r"currently (working|running|operating)|"
+    r"page (fetched|loaded|retrieved)|"
+    r"(created|saved|fetched|written|loaded):)\b",
+    re.IGNORECASE,
+)
 
 
 def register_verifier_model(provider: "LLMProvider | None") -> None:
@@ -190,7 +207,24 @@ Examples that should NOT be pinned:
 Return ONLY valid JSON:
 {"pins": ["short fact 1", "short fact 2"]}
 If nothing pinnable: {"pins": []}
-Each pin must be under 20 words, written as a fact about the user, self-contained."""
+Each pin must be under 20 words, written as a fact about the user, self-contained.
+
+CRITICAL — use plain, simple language. Copy the user's own words as closely as possible.
+Do NOT use synonyms, paraphrases, or fancy vocabulary.
+GOOD: User prefers coffee over tea
+BAD:  Preference for caffeine in brewed form rather than herbal beverage
+GOOD: User's preferred title is Master
+BAD:  My name is... Master
+GOOD: User plays Apex Legends on PC
+BAD:  User's recreational activity involves a battle royale first-person shooter"""
+
+
+def _is_valid_pin(pin: str) -> bool:
+    """Deterministic post-filter: reject pins that are actions/events/status, not user facts."""
+    words = pin.split()
+    if len(words) < 3:
+        return False
+    return not _PIN_REJECT.search(pin)
 
 
 def semantic_pin_check(user_message: str) -> list[str]:
@@ -208,7 +242,11 @@ def semantic_pin_check(user_message: str) -> list[str]:
         if start == -1 or end == 0:
             return []
         data = _json.loads(result[start:end])
-        pins = [p.strip() for p in data.get("pins", []) if isinstance(p, str) and p.strip()]
+        raw_pins = [p.strip() for p in data.get("pins", []) if isinstance(p, str) and p.strip()]
+        pins = [p for p in raw_pins if _is_valid_pin(p)]
+        if len(raw_pins) != len(pins):
+            rejected = [p for p in raw_pins if not _is_valid_pin(p)]
+            logger.info("[LLM2 PINNING] Filtered %d non-identity pin(s): %s", len(rejected), rejected)
         if pins:
             logger.info("[LLM2 PINNING] %d pin(s) detected: %s", len(pins), pins)
         return pins
@@ -293,10 +331,13 @@ NOT a violation: "I couldn't find the lyrics", "the search returned no results",
 
 RULE 2 — SAVE REQUESTS MUST BE HONOURED
 If the user explicitly asked to STORE information: "save this", "remember this", "store this",
-"don't forget", "keep that", "add this to memory".
+"don't forget", "keep that", "add this to memory", "I want you to remember [fact]".
 VIOLATION if save_memory() was NOT called AND auto_saved=True is NOT marked below.
-NOT a violation: "remind me what we did", "what do you remember", "recall last session" —
-these are RECALL requests, not save requests. Only flag when user asks to STORE something new.
+NOT a violation (RECALL, not save): "remind me what we did", "what do you remember",
+"recall last session", "do you remember [past event]", "do you have any context",
+"can you recall", "what was the last time" — these ask the AI to RETRIEVE, not STORE.
+Rule of thumb: if the user is ASKING A QUESTION about the past, it is RECALL. Only flag when
+the user is telling the AI to STORE a new fact they just stated.
 
 RULE 3 — NO PREMATURE STOPS ON TASK REQUESTS
 If user asked for a concrete action (fetch URL, read file, write code, run command):
@@ -375,6 +416,38 @@ def _extract_first_json(text: str) -> "str | None":
     return None
 
 
+def _repair_parse_violations(raw: str) -> "list[str] | None":
+    """Attempt progressively looser parses of LLM2 JSON to extract violations list.
+    Returns list (possibly empty) on success, None if all attempts fail."""
+    import json as _json
+    import re as _re
+    # Attempt 1: strict parse
+    try:
+        return [
+            v.strip() for v in _json.loads(raw).get("violations", [])
+            if isinstance(v, str) and v.strip()
+        ]
+    except _json.JSONDecodeError:
+        pass
+    # Attempt 2: strip trailing commas before ] or }
+    cleaned = _re.sub(r',\s*([\]}])', r'\1', raw)
+    try:
+        return [
+            v.strip() for v in _json.loads(cleaned).get("violations", [])
+            if isinstance(v, str) and v.strip()
+        ]
+    except _json.JSONDecodeError:
+        pass
+    # Attempt 3: extract quoted Rule-N strings directly
+    hits = _re.findall(r'"(Rule\s+\d[^"]{0,300})"', raw)
+    if hits:
+        return [h.strip() for h in hits]
+    # Attempt 4: {"violations": []} or {"violations":[]} with empty array
+    if _re.search(r'"violations"\s*:\s*\[\s*\]', raw):
+        return []
+    return None
+
+
 def _llm2_supervisor_check(
     request: str,
     tools_invoked: list[str],
@@ -382,7 +455,6 @@ def _llm2_supervisor_check(
     auto_saved: bool,
 ) -> list[str]:
     """Full LLM2 audit — unconditional, no regex pre-filter. Expects JSON output."""
-    import json as _json
     tools_str = ", ".join(tools_invoked) if tools_invoked else "none"
     auto_save_note = " (auto_saved=True)" if auto_saved else ""
     audit_prompt = (
@@ -400,11 +472,17 @@ def _llm2_supervisor_check(
         if raw is None:
             logger.warning("[LLM2 SUPERVISOR] Non-JSON response — falling back to regex")
             return _regex_supervisor_fallback(request, tools_invoked, response, auto_saved)
-        data = _json.loads(raw)
-        violations = [
-            v.strip() for v in data.get("violations", [])
-            if isinstance(v, str) and v.strip()
-        ]
+        violations = _repair_parse_violations(raw)
+        if violations is None:
+            logger.warning("[LLM2 SUPERVISOR] Unrecoverable JSON — falling back to regex")
+            return _regex_supervisor_fallback(request, tools_invoked, response, auto_saved)
+        # Post-filter: suppress Rule 2 false positives on recall-only requests.
+        # phi4-mini confuses "do you remember [past event]?" (RECALL) with "remember this" (SAVE).
+        if _RECALL_ONLY.search(request) and not _SAVE_REQUEST.search(request):
+            before = len(violations)
+            violations = [v for v in violations if not re.search(r"\bRule\s*2\b", v, re.IGNORECASE)]
+            if len(violations) < before:
+                logger.info("[LLM2 SUPERVISOR] Rule 2 suppressed (request is recall-only)")
         if violations:
             for v in violations:
                 logger.warning("[LLM2 SUPERVISOR] %s", v)

@@ -293,6 +293,61 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "take_screenshot",
+            "description": (
+                "Capture the screen and analyze it using the vision model. "
+                "Use when the user says 'what's on my screen', 'read this error', "
+                "'describe what you see', 'what does this form say', or any request "
+                "that requires seeing the current state of the desktop or a window."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": (
+                            "What to ask the vision model about the screen. "
+                            "Examples: 'What error message is showing?', "
+                            "'What form fields are visible?', "
+                            "'Read all the text on screen.'"
+                        ),
+                    }
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_browse",
+            "description": (
+                "Fetch a URL using a real browser with JavaScript execution. "
+                "Use this for lyrics sites, news articles, SPAs, dashboards — "
+                "any page that returns blank content with web_fetch. "
+                "Slower than web_fetch but works on JS-rendered pages. "
+                "Optional: selector (CSS) to extract specific content; "
+                "wait_for (text string) to wait for before extracting."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "Full URL to browse"},
+                    "selector": {
+                        "type": "string",
+                        "description": "CSS selector to extract (e.g. '.lyrics', '#content'). Leave empty for full page.",
+                    },
+                    "wait_for": {
+                        "type": "string",
+                        "description": "Wait for this text to appear before extracting (useful for SPAs)",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "web_fetch",
             "description": (
                 "Fetch a URL and return its text content. "
@@ -315,6 +370,151 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "read_word",
+            "description": (
+                "Read a Word document (.docx) and return its text content. "
+                "Preserves headings, paragraphs, bullet points, and tables. "
+                "Use when the user provides or references a .docx file."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the .docx file"},
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_spreadsheet",
+            "description": (
+                "Write structured data to a CSV or XLSX spreadsheet file. "
+                "rows is a list of objects where keys become column headers. "
+                "Use .csv for simple data; use .xlsx for formatted Excel with bold headers. "
+                "Use when the user wants to export data, generate a report, or save a table."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Output file path — must end in .csv or .xlsx",
+                    },
+                    "rows": {
+                        "type": "array",
+                        "description": (
+                            'List of objects where each key is a column header. '
+                            'Example: [{"Name": "Alice", "Score": 95}, {"Name": "Bob", "Score": 88}]'
+                        ),
+                        "items": {"type": "object"},
+                    },
+                    "sheet": {
+                        "type": "string",
+                        "description": "Worksheet name for .xlsx (default 'Sheet1')",
+                    },
+                },
+                "required": ["path", "rows"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_word",
+            "description": (
+                "Create a Word document (.docx) from structured text content. "
+                "Supports headings (# ## ###), bullet lists (- item), numbered lists (1. item), "
+                "tables (| col | col | rows), and regular paragraphs. "
+                "Use when the user wants a formatted report, letter, or document as a .docx file."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Output file path — must end in .docx",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": (
+                            "Document content using simple markdown-like syntax:\n"
+                            "  # Title        → Heading 1\n"
+                            "  ## Section     → Heading 2\n"
+                            "  - bullet       → Bullet point\n"
+                            "  1. item        → Numbered list\n"
+                            "  | col | col |  → Table row\n"
+                            "  plain text     → Paragraph"
+                        ),
+                    },
+                },
+                "required": ["path", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_pdf",
+            "description": (
+                "Read a PDF file and return its text content. "
+                "For text-based PDFs, extracts text directly (fast). "
+                "For scanned/image PDFs, uses vision OCR automatically. "
+                "Supports page ranges: 'all', '1-5', '3'. "
+                "Use dpi=300 for invoices, forms, or small-text documents."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the PDF file"},
+                    "pages": {
+                        "type": "string",
+                        "description": "Pages to read: 'all' (default), '1-5', or '3'",
+                    },
+                    "dpi": {
+                        "type": "integer",
+                        "description": (
+                            "OCR resolution for scanned pages. "
+                            "200 = default (general docs), "
+                            "300 = invoices/forms/small text, "
+                            "150 = fast/low-quality. Range: 150-400."
+                        ),
+                    },
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_spreadsheet",
+            "description": (
+                "Read an Excel (.xlsx, .xls) or CSV file. "
+                "Returns column names, row count, and a preview of the data. "
+                "Use sheet parameter to select a specific worksheet."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Path to the spreadsheet file"},
+                    "sheet": {
+                        "type": "string",
+                        "description": "Sheet name to read (Excel only; defaults to active sheet)",
+                    },
+                    "max_rows": {
+                        "type": "integer",
+                        "description": "Max rows to return in preview (default 100)",
+                    },
+                },
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "load_skill",
             "description": (
                 "Load the full instructions for a named skill. "
@@ -330,6 +530,91 @@ TOOL_DEFINITIONS: list[dict] = [
                     }
                 },
                 "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "browser_action",
+            "description": (
+                "Interact with a live persistent browser page — click buttons, fill forms, "
+                "navigate, scrape JS-rendered content, and automate web workflows. "
+                "ALWAYS call get_snapshot first after navigating to see all interactive elements. "
+                "click tries CSS/text/role matching (Approach A) then falls back to "
+                "vision model pixel coordinates (Approach B) automatically. "
+                "Use web_browse for simple read-only fetching; use browser_action when you "
+                "need to interact (click, type, select, hover) or when state must persist "
+                "across multiple steps."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "navigate", "get_snapshot", "click", "type",
+                            "hover", "scroll", "wait", "get_text", "select", "screenshot",
+                        ],
+                        "description": (
+                            "navigate — go to URL. "
+                            "get_snapshot — dump accessibility tree (call this first). "
+                            "click — click an element (A11y → vision fallback). "
+                            "type — clear + type text into an input. "
+                            "hover — hover over element (triggers dropdowns/tooltips). "
+                            "scroll — scroll page or scroll element into view. "
+                            "wait — wait for element/text to appear. "
+                            "get_text — return inner text of element. "
+                            "select — pick an option from a <select> dropdown. "
+                            "screenshot — screenshot page and analyze with vision model."
+                        ),
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Full URL for navigate action (must start with http:// or https://)",
+                    },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector to target an element "
+                            "(e.g. '#submit-btn', '.product-title', 'button[type=submit]'). "
+                            "Preferred over text when the element has a stable CSS id/class."
+                        ),
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": (
+                            "Visible text label of the element to interact with "
+                            "(e.g. 'Add to Cart', 'Submit', 'Next'). "
+                            "Tried exact then partial match."
+                        ),
+                    },
+                    "role": {
+                        "type": "string",
+                        "description": (
+                            "ARIA role to match (e.g. 'button', 'textbox', 'link', 'combobox'). "
+                            "Combine with text for 'button named Submit'."
+                        ),
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": (
+                            "For type: the text to type into the input. "
+                            "For select: the option value or label to select. "
+                            "For scroll: direction ('up'/'down'/'top'/'bottom') or pixel amount. "
+                            "For screenshot: the vision prompt (what to describe)."
+                        ),
+                    },
+                    "wait_for": {
+                        "type": "string",
+                        "description": "CSS selector to wait for before executing the action (useful after clicks that trigger navigation or dynamic content).",
+                    },
+                    "timeout_ms": {
+                        "type": "integer",
+                        "description": "Timeout in milliseconds (default 15000). Increase for slow pages.",
+                    },
+                },
+                "required": ["action"],
             },
         },
     },

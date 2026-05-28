@@ -94,8 +94,32 @@ web_browse (N1) only reads — this adds writes.
 - New tool: `browser_action(action, selector, value, url=None)`
 - Implement: click, type, navigate, wait_for_selector, get_page_text
 - Add browser_skill.yaml with instructions for automation tasks
+- For existing open browsers: CDP attach via --remote-debugging-port
 **Complexity:** High (4-6 hours)
 **Blocker:** N1 must be done first
+
+---
+
+### [N13] Browser Extension — control any open browser
+**Priority:** MEDIUM — V0.4 quality-of-life
+**What:** A Chrome/Brave extension that connects to Nexux via WebSocket and can
+fill forms, read page content, and navigate in the user's EXISTING browser session.
+No need to restart browsers with special flags.
+**Why:** Playwright opens its own browser. CDP attach requires --remote-debugging-port flag
+on launch. Extension works with any already-open browser + any Chrome profile.
+**How the user installs it:**
+- Dashboard → new "Browser Extension" tab → "Install in Chrome" / "Install in Brave" / "Install All"
+- Script detects browser paths, registers extension files, opens browser to extensions page
+- User enables developer mode + loads unpacked (one-time, 30 seconds)
+**Implementation:**
+- `Skynet/browser_extension/manifest.json` (Manifest V3)
+- `Skynet/browser_extension/background.js` — WebSocket client to ws://localhost:7799/ws/extension
+- `Skynet/browser_extension/content.js` — form filling, DOM reading, page interaction
+- `Skynet/ui/routes/extension.py` — WebSocket endpoint + install API
+- Dashboard tab with install button per browser
+- Commands: fill_form, read_page, navigate, get_active_tab_info
+**Complexity:** Medium (1 day)
+**Blocker:** N5 should be done first (validates what commands are needed)
 
 ---
 

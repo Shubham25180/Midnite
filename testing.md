@@ -212,18 +212,89 @@ These are hard to trigger manually — monitor logs during any session.
 
 ---
 
+## 18. PDF Reading (N2)
+
+| # | What to say | Expected result | Log check | Status |
+|---|------------|----------------|-----------|--------|
+| PD1 | "Read this PDF: [path to text-based PDF]" | Returns extracted text, no OCR | `Tool call: read_pdf` + `method=text extraction` in output | 🔲 |
+| PD2 | "Read this PDF: [path to scanned/image PDF]" | Falls back to vision OCR, returns readable text | `method=vision OCR` in output header | 🔲 |
+| PD3 | "Read pages 1-3 of [PDF]" | Returns only those pages | `pages=1-3` in output | 🔲 |
+| PD4 | "Summarize this PDF" | Reads and summarises content correctly | `read_pdf` called, summary makes sense | 🔲 |
+| PD5 | "Read [non-existent.pdf]" | Graceful "File not found" | No crash | 🔲 |
+
+---
+
+## 19. Excel / CSV Reading (N3)
+
+| # | What to say | Expected result | Log check | Status |
+|---|------------|----------------|-----------|--------|
+| XL1 | "Read this CSV: [path.csv]" | Returns columns + row count + data preview | `Tool call: read_spreadsheet` | 🔲 |
+| XL2 | "Read this Excel file: [path.xlsx]" | Returns sheet name, columns, row count, preview | `Tool call: read_spreadsheet` | 🔲 |
+| XL3 | "Read the 'Sales' sheet from [path.xlsx]" | Returns correct sheet, not default | correct sheet name in response | 🔲 |
+| XL4 | "How many rows does this spreadsheet have?" | Reports correct total row count | Correct number | 🔲 |
+| XL5 | "Read [non-existent.xlsx]" | Graceful "File not found" | No crash | 🔲 |
+
+---
+
+## 20. Playwright web_browse (N1)
+
+| # | What to say | Expected result | Log check | Status |
+|---|------------|----------------|-----------|--------|
+| WB1 | "Fetch https://example.com using web_browse" | Returns "Example Domain" text | `Tool call: web_browse` | 🔲 |
+| WB2 | "Get the lyrics for [song] from a lyrics site" | Returns actual lyrics (not empty content) | `web_browse` used, lyrics in response | 🔲 |
+| WB3 | "Fetch [SPA or JS-heavy site]" | Returns rendered content (not blank) | `web_browse` returns text web_fetch wouldn't | 🔲 |
+| WB4 | "Fetch https://example.com using the selector 'h1'" | Returns only the h1 text | `selector=h1` in response header | 🔲 |
+| WB5 | "Fetch [invalid-url]" | Graceful error message | No crash | 🔲 |
+| WB6 | Shut down Nexux after a web_browse call | No Chromium process left hanging | No orphan process in Task Manager | 🔲 |
+
+---
+
+## 21. Screenshot + Vision (N4)
+
+| # | What to say | Expected result | Log check | Status |
+|---|------------|----------------|-----------|--------|
+| SC1 | "What's on my screen?" | Describes visible windows, text, content accurately | `Tool call: take_screenshot` | 🔲 |
+| SC2 | "Read the error message on screen" | Returns the exact error text visible | Vision model output includes error text | 🔲 |
+| SC3 | "What form fields are visible?" | Lists form inputs, labels, placeholders | Accurate field names returned | 🔲 |
+| SC4 | "Describe what's on my screen" (nothing open) | Describes desktop/taskbar correctly | No crash on minimal screen content | 🔲 |
+| SC5 | Check log after SC1 | Shows screenshot resolution and KB size | `Screenshot captured: WxH px (N KB)` in log | 🔲 |
+
+---
+
+## 22. Identity JSON — Layer 1 Cognitive State (N6)
+
+| # | What to do | Expected result | Log check | Status |
+|---|-----------|----------------|-----------|--------|
+| ID1 | Say "My name is Shubham and I'm building Nexux." | LLM2 pins fact; `data/identity.json` contains the entry on disk | `Identity JSON updated` in log | 🔲 |
+| ID2 | Say "From now on always respond concisely." | Rule pinned; `data/identity.json` gains a new entry | Log shows new pin + identity write | 🔲 |
+| ID3 | Restart server; check first prompt | "PINNED IDENTITY" block appears in log's system prompt preview (`/api/debug/prompt`) | Block is at the TOP of the system prompt | 🔲 |
+| ID4 | After ID1 + restart, ask "What is my name?" | Answers "Shubham" without calling `search_memory` — comes from identity block | No `search_memory` call in log | 🔲 |
+| ID5 | Same fact said twice (e.g. "I'm Shubham" on two sessions) | `identity.json` still has only ONE entry for that fact (dedup working) | File has no duplicates | 🔲 |
+
+---
+
+## 23. Browser Action — Approach A + B (N5)
+
+| # | What to say | Expected result | Log check | Status |
+|---|-----------|----------------|-----------|--------|
+| BA1 | "Go to https://example.com using browser_action" | Navigated; title returned | `browser_action navigate` in log | 🔲 |
+| BA2 | After BA1: "Get a snapshot of the page" | Accessibility tree dumped — shows heading, link, paragraph roles | `Tool call: browser_action` with `get_snapshot` | 🔲 |
+| BA3 | After BA1: "Click the 'More information...' link" | Link clicked via text match (Approach A). Page navigates. | `browser_action click [A/exact-text]` or `partial-text` | 🔲 |
+| BA4 | "Type 'nexux' into the search box on https://duckduckgo.com" | Navigates → finds input → types text (Approach A css/role) | `browser_action type [A/...]` in log | 🔲 |
+| BA5 | Navigate to a page with an element that has no accessible label → click it | Approach A fails, Approach B (vision) kicks in. Click lands at correct coordinates. | `Approach A click failed` then `Approach B click at` in log | 🔲 |
+| BA6 | "Take a screenshot of the current browser page and describe it" | Browser page screenshotted (not desktop), analyzed by qwen2.5vl | `browser_action screenshot` + vision output in response | 🔲 |
+| BA7 | "Scroll down on the current page" | Page scrolls down 400px | `browser_action scroll: down` | 🔲 |
+| BA8 | "Wait for the element '.results' to appear" | Waits up to 15s for selector | `browser_action wait` returns "Element appeared" or timeout | 🔲 |
+| BA9 | Shut down Nexux after browser_action use | Persistent page + browser closed cleanly, no orphan Chromium | No orphan process in Task Manager | 🔲 |
+
+---
+
 ## 🔜 Tests to Add When Features Are Implemented
 
 Add tests here as features are built. Move to the main table once implemented.
 
 | Feature | Test to add |
 |---------|-------------|
-| N1 — Playwright web_browse | JS-rendered site fetch works (lyrics, SPAs). `web_browse` tool called in log. |
-| N2 — PDF reading | "Read this PDF and summarize it." → reads file, summarises correctly. |
-| N3 — Excel/CSV | "Read this spreadsheet and tell me the total rows." → correct count returned. |
-| N4 — Screenshot + vision | "What's on my screen?" → describes visible content accurately. |
-| N5 — Browser actions | "Click the first result on this page." → Playwright performs click. |
-| N6 — Identity JSON | After save: `data/identity.json` contains name/location. Loads on next boot. |
 | N7 — Cloud LLM routing | Task that requires vision → routed to cloud. Log shows cloud provider used. |
 | N8 — LLM2 Router | Recall request → no `_MEMORY_RECALL` regex firing; LLM2 routing decision in log. |
 
